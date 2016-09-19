@@ -1,0 +1,7 @@
+spring:
+  data:
+      mongodb:
+            uri: mongodb://localhost/spring_rest
+
+server:
+  port: 8090
