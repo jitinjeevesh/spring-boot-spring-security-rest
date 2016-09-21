@@ -6,15 +6,25 @@ import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authentication.dao.ReflectionSaltSource;
+import org.springframework.security.authentication.dao.SaltSource;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.FilterChainProxy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import javax.servlet.ServletException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Order(SecurityProperties.ACCESS_OVERRIDE_ORDER)
 @EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true)
@@ -23,9 +33,9 @@ public class ApplicationSecurity extends WebSecurityConfigurerAdapter {
     @Autowired
     private RESTAuthenticationEntryPoint authenticationEntryPoint;
     @Autowired
-    private RESTAuthenticationFailureHandler authenticationFailureHandler;
+    private RESTAuthenticationFailureHandler restAuthenticationFailureHandler;
     @Autowired
-    private RESTAuthenticationSuccessHandler authenticationSuccessHandler;
+    private RESTAuthenticationSuccessHandler restAuthenticationSuccessHandler;
     @Autowired
     private RESTLogoutSuccessHandler restLogoutSuccessHandler;
 
@@ -52,7 +62,16 @@ public class ApplicationSecurity extends WebSecurityConfigurerAdapter {
         DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
         authenticationProvider.setUserDetailsService(customUserDetailsService);
 //        authenticationProvider.setPasswordEncoder(passwordEncoder());
+//        authenticationProvider.setSaltSource(saltSource());
         return authenticationProvider;
+    }
+
+    @Bean
+    public SaltSource saltSource() throws Exception {
+        ReflectionSaltSource saltSource = new ReflectionSaltSource();
+        saltSource.setUserPropertyToUse("salt");
+        saltSource.afterPropertiesSet();
+        return saltSource;
     }
 
     @Override
@@ -60,11 +79,12 @@ public class ApplicationSecurity extends WebSecurityConfigurerAdapter {
         http.authorizeRequests().antMatchers("/rest/**").authenticated();
         http.addFilterBefore(customUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         http.exceptionHandling().authenticationEntryPoint(authenticationEntryPoint);
-        http.formLogin().loginPage("/login").successHandler(authenticationSuccessHandler);
-        http.formLogin().failureHandler(authenticationFailureHandler);
+        http.formLogin().loginProcessingUrl("/login").successHandler(restAuthenticationSuccessHandler);
+        http.formLogin().failureHandler(restAuthenticationFailureHandler);
         http.logout().logoutUrl("/logout").logoutSuccessHandler(restLogoutSuccessHandler);
 //        logoutRequestMatcher(new AntPathRequestMatcher("/logout")).permitAll()
         // CSRF tokens handling
+        http.csrf().disable();
         http.addFilterAfter(new CsrfTokenResponseHeaderBindingFilter(), CsrfFilter.class);
     }
 
@@ -74,6 +94,10 @@ public class ApplicationSecurity extends WebSecurityConfigurerAdapter {
         CustomUsernamePasswordAuthenticationFilter customUsernamePasswordAuthenticationFilter = new CustomUsernamePasswordAuthenticationFilter();
         customUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManagerBean());
         customUsernamePasswordAuthenticationFilter.setRequiresAuthenticationRequestMatcher(new AntPathRequestMatcher("/login", "POST"));
+        customUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(restAuthenticationSuccessHandler);
+        customUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(restAuthenticationFailureHandler);
+        customUsernamePasswordAuthenticationFilter.setUsernameParameter("username");
+        customUsernamePasswordAuthenticationFilter.setPasswordParameter("password");
         return customUsernamePasswordAuthenticationFilter;
     }
 }

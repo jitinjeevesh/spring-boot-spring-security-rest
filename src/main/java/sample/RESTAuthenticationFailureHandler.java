@@ -12,10 +12,15 @@ import java.io.IOException;
 @Component
 public class RESTAuthenticationFailureHandler extends SimpleUrlAuthenticationFailureHandler {
 
+    public RESTAuthenticationFailureHandler() {
+        super("/fail");
+    }
+
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException, ServletException {
 
+        System.out.println("........... Inside RESTAuthenticationFailureHandler................");
         super.onAuthenticationFailure(request, response, exception);
     }
 }
